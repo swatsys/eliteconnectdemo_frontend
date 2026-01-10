@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { 
   Heart, X, MessageCircle, Home, Wallet, User, 
@@ -7,7 +6,8 @@ import {
 import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
 
 // --- CONFIGURATION ---
-const API_URL = `http://${window.location.hostname}:5001/api`; 
+// Updated to use your deployed Render Backend
+const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
 const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; 
 const WORLD_ID_ACTION = 'signin';
 
