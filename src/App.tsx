@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Heart, X, MessageCircle, Home, Wallet, User, 
-  Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap, Loader2
+  Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap, Loader2, RefreshCw
 } from 'lucide-react';
 import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
 
@@ -355,6 +355,7 @@ export default function App() {
   const [exploreProfile, setExploreProfile] = useState<any>(null);
   const [error, setError] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [lastProof, setLastProof] = useState<any>(null);
 
   useEffect(() => { 
       if (token) fetchUserData(); 
@@ -411,31 +412,66 @@ export default function App() {
 
   // LOGIN FUNCTION
   const loginUser = async (proof: any) => {
-    try {
-        const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proof }) });
-        const data = await res.json();
-        
-        if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
-        
-        if (data.success) { 
-            localStorage.setItem('elite_token', data.token); 
-            setToken(data.token); 
-            setError(''); 
+    // Retry logic for cold-start backends
+    const maxRetries = 3;
+    let attempt = 0;
+    let lastError;
+
+    while (attempt < maxRetries) {
+        try {
+            console.log(`Login Attempt ${attempt + 1}/${maxRetries}`);
+            const res = await fetch(`${API_URL}/auth/login`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ proof }) 
+            });
+            
+            if (!res.ok) {
+                // If it's a 4xx error (client side), don't retry.
+                if (res.status >= 400 && res.status < 500) {
+                     const data = await res.json();
+                     throw new Error(data.error || `Client error: ${res.status}`);
+                }
+                // If 5xx (server), retry.
+                throw new Error(`Server error: ${res.status}`);
+            }
+            
+            const data = await res.json();
+            if (data.success) { 
+                localStorage.setItem('elite_token', data.token); 
+                setToken(data.token); 
+                setError('');
+                // CRITICAL: Navigate based on isNew status
+                if (data.isNew) {
+                    setView(ViewState.ONBOARDING);
+                } else {
+                    setView(ViewState.HOME);
+                }
+                return; // Success!
+            } else {
+                throw new Error(data.error || "Unknown login error");
+            }
+        } catch (e: any) {
+            console.error(`Attempt ${attempt + 1} failed:`, e);
+            lastError = e;
+            attempt++;
+            if (attempt < maxRetries) {
+                // Wait 2 seconds before retry
+                await new Promise(r => setTimeout(r, 2000));
+            }
         }
-    } catch (e: any) {
-        console.error("Login failed:", e);
-        throw e;
     }
+    throw lastError;
   };
   
   // MOCK LOGIN HANDLER
   const handleMockLogin = async () => {
       setIsLoggingIn(true);
+      setError('');
       try {
           await loginUser('mock');
       } catch (e: any) {
-          alert(`Login failed: ${e.message}`);
-          setError("Login Error: " + e.message); 
+          setError(`Login Failed: ${e.message}`); 
       } finally {
           setIsLoggingIn(false);
       }
@@ -444,24 +480,25 @@ export default function App() {
   // WORLD ID HANDLERS
   
   // 1. handleVerify: Validates the proof LOCALLY just to satisfy the widget.
-  //    We DO NOT call the backend here to prevent timeouts.
   const handleVerify = async (result: any) => {
       console.log("Proof received from World ID, validating structure...", result);
       if (!result || !result.nullifier_hash) {
           throw new Error("Invalid proof received");
       }
-      // Return successfully to close the widget immediately
       return; 
   };
 
   // 2. onSuccess: Called after widget closes. Now we call the backend.
   const onSuccess = (result: any) => {
       console.log("Widget closed, starting backend login...");
+      setLastProof(result); // Save for retry
       setIsLoggingIn(true);
+      setError('');
+      
       loginUser(result)
         .catch(e => {
-            alert("Backend Login Failed: " + e.message);
-            setError("Login Error: " + e.message);
+            console.error("Final login failure:", e);
+            setError(`Login Failed: ${e.message}.`);
         })
         .finally(() => {
             setIsLoggingIn(false);
@@ -515,10 +552,10 @@ export default function App() {
             {view === ViewState.AUTH && (
                  <div className="h-full flex flex-col items-center justify-center p-8 bg-white relative">
                     {isLoggingIn && (
-                        <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+                        <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center text-center p-6">
                             <Loader2 className="animate-spin text-purple-600 mb-4" size={48} />
                             <p className="font-bold text-slate-800">Logging in...</p>
-                            <p className="text-xs text-slate-500 mt-2">Connecting to secure server</p>
+                            <p className="text-xs text-slate-500 mt-2">Connecting to secure server. This may take up to 60s if server is waking up.</p>
                         </div>
                     )}
 
@@ -528,15 +565,25 @@ export default function App() {
                         <div className="w-full mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex flex-col gap-2">
                             <div className="flex items-center gap-2 font-bold"><AlertCircle size={16} /> Login Error</div>
                             <p>{error}</p>
+                            
+                            {/* Manual Retry Button */}
+                            {lastProof && (
+                                <button 
+                                    onClick={() => onSuccess(lastProof)}
+                                    className="mt-2 flex items-center justify-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 py-2 rounded-lg font-bold transition-colors"
+                                >
+                                    <RefreshCw size={14} /> Retry Login
+                                </button>
+                            )}
+                            
                             <div className="text-xs text-red-400 mt-1 pt-2 border-t border-red-100">
                                 Check backend logs or try again in a few seconds.
                             </div>
                         </div>
                     )}
                     
-                    <div className="text-xs text-center text-slate-400 mb-4 p-2 bg-slate-50 rounded">
-                        Debug: Backend is {API_URL} <br/>
-                        If stuck, Backend is likely down.
+                    <div className="text-xs text-center text-slate-400 mb-4 p-2 bg-slate-50 rounded break-all">
+                        Backend: {API_URL}
                     </div>
 
                     <Button fullWidth onClick={() => handleMockLogin()} className="mb-4">Mock Login (Dev Only)</Button>
