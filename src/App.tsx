@@ -6,9 +6,10 @@ import {
 import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
 
 // --- CONFIGURATION ---
-// Updated to use your deployed Render Backend
 const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
-const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; 
+
+// !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
+const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS
 const WORLD_ID_ACTION = 'signin';
 
 // --- TYPES ---
@@ -400,15 +401,31 @@ export default function App() {
       try { const res = await fetch(`${API_URL}/chat/${matchId}`, { headers: { 'Authorization': token || '' } }); const data = await res.json(); if(data.success) setActiveMessages(data.messages); } catch(e) { console.error(e); }
   };
   const handleAuth = async (proof?: any) => {
+    console.log("Authenticating with proof:", proof);
     try {
       const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proof: proof || 'mock' }) });
-      if(!res.ok) throw new Error("Connection Failed");
+      
+      if(!res.ok) {
+          const text = await res.text();
+          throw new Error(`Server error: ${res.status} - ${text}`);
+      }
+      
       const data = await res.json();
-      if (data.success) { localStorage.setItem('elite_token', data.token); setToken(data.token); setError(''); }
-    } catch (e) { setError("Server connection error. Check API_URL."); }
+      if (data.success) { 
+          localStorage.setItem('elite_token', data.token); 
+          setToken(data.token); 
+          setError(''); 
+      }
+    } catch (e: any) { 
+        console.error("Login failed:", e);
+        // CRITICAL: Alert the user so they see it on mobile
+        alert(`Login failed: ${e.message}. Backend may be down.`);
+        setError("Server connection error. Check API_URL."); 
+    }
   };
   
   const handleWorldIDSuccess = (result: any) => {
+      console.log("World ID verified successfully", result);
       handleAuth(result);
   };
 
@@ -466,6 +483,11 @@ export default function App() {
                             <AlertCircle size={16} /> {error}
                         </div>
                     )}
+                    
+                    <div className="text-xs text-center text-slate-400 mb-4 p-2 bg-slate-50 rounded">
+                        Debug: Backend is {API_URL} <br/>
+                        If stuck, Backend is likely down.
+                    </div>
 
                     <Button fullWidth onClick={() => handleAuth()} className="mb-4">Mock Login (Dev Only)</Button>
                     
