@@ -11,7 +11,7 @@ const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
 const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
-const WORLD_ID_ACTION = 'signin';
+const WORLD_ID_ACTION = 'signn';
 
 // --- TYPES ---
 enum ViewState {
@@ -355,7 +355,13 @@ export default function App() {
   const [exploreProfile, setExploreProfile] = useState<any>(null);
   const [error, setError] = useState<string>('');
 
-  useEffect(() => { if (token) fetchUserData(); }, [token]);
+  useEffect(() => { 
+      if (token) fetchUserData(); 
+      if (WORLD_ID_APP_ID.includes('12345') && view === ViewState.AUTH) {
+          setError("Configuration Error: Please update WORLD_ID_APP_ID in App.tsx");
+      }
+  }, [token, view]);
+  
   useEffect(() => {
     if (view === ViewState.EXPLORE) fetchExploreProfile();
     if (view === ViewState.MATCHES) fetchMatches();
@@ -376,7 +382,7 @@ export default function App() {
     try {
       const res = await fetch(`${API_URL}/me`, { headers: { 'Authorization': token || '' } });
       
-      // CRITICAL FIX: Handle unauthorized (401) gracefully
+      // Handle unauthorized (401) gracefully
       if (res.status === 401) {
           localStorage.removeItem('elite_token');
           setToken(null);
@@ -401,34 +407,49 @@ export default function App() {
   const fetchMessages = async (matchId: string) => {
       try { const res = await fetch(`${API_URL}/chat/${matchId}`, { headers: { 'Authorization': token || '' } }); const data = await res.json(); if(data.success) setActiveMessages(data.messages); } catch(e) { console.error(e); }
   };
-  const handleAuth = async (proof?: any) => {
-    console.log("Authenticating with proof:", proof);
+
+  // GENERIC LOGIN FUNCTION (Used by Mock & World ID)
+  const loginUser = async (proof: any) => {
     try {
-      const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proof: proof || 'mock' }) });
-      
-      const data = await res.json();
-      
-      if(!res.ok) {
-          // THROW THE ACTUAL SERVER ERROR
-          throw new Error(data.error || `Server error: ${res.status}`);
-      }
-      
-      if (data.success) { 
-          localStorage.setItem('elite_token', data.token); 
-          setToken(data.token); 
-          setError(''); 
-      }
-    } catch (e: any) { 
+        const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proof }) });
+        const data = await res.json();
+        
+        if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
+        
+        if (data.success) { 
+            localStorage.setItem('elite_token', data.token); 
+            setToken(data.token); 
+            setError(''); 
+        }
+    } catch (e: any) {
         console.error("Login failed:", e);
-        // CRITICAL: Alert the user so they see it on mobile
-        alert(`Login failed: ${e.message}`);
-        setError("Login Error: " + e.message); 
+        throw e; // Re-throw to be handled by caller
     }
   };
   
-  const handleWorldIDSuccess = (result: any) => {
-      console.log("World ID verified successfully", result);
-      handleAuth(result);
+  // MOCK LOGIN HANDLER
+  const handleMockLogin = async () => {
+      try {
+          await loginUser('mock');
+      } catch (e: any) {
+          alert(`Login failed: ${e.message}`);
+          setError("Login Error: " + e.message); 
+      }
+  };
+
+  // WORLD ID HANDLERS
+  // 1. handleVerify: Called by IDKit *during* verification. We must return a Promise.
+  //    If this rejects, IDKit shows an error. If resolves, IDKit shows success.
+  const handleVerify = async (result: any) => {
+      console.log("Verifying proof with backend...", result);
+      // We return the promise from loginUser directly
+      await loginUser(result);
+  };
+
+  // 2. onSuccess: Called after handleVerify resolves and modal closes.
+  const onSuccess = () => {
+      console.log("Verification successful & Login complete.");
+      // Token is already set by loginUser, so view will update automatically via useEffect
   };
 
   const handleProfileSubmit = async (p: any) => {
@@ -439,7 +460,6 @@ export default function App() {
     await fetch(`${API_URL}/explore/like`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' }, body: JSON.stringify({ targetId: exploreProfile.worldId }) }); fetchExploreProfile();
   };
   const handleUnlock = async (matchId: string) => {
-      // Different prompt depending on sub status
       const msg = user?.subscription?.active ? "Unlock Chat? (Premium Active)" : "Unlock 10min Chat? (Costs Free Unlock or 5 WLD)";
       if(!confirm(msg)) return;
       
@@ -480,9 +500,14 @@ export default function App() {
                  <div className="h-full flex flex-col items-center justify-center p-8 bg-white">
                     <h2 className="text-2xl font-bold mb-8">Verify to Continue</h2>
                     
+                    {/* VISIBLE ERROR BOX for Mobile Debugging */}
                     {error && (
-                        <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-xl text-sm flex items-center gap-2">
-                            <AlertCircle size={16} /> {error}
+                        <div className="w-full mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex flex-col gap-2">
+                            <div className="flex items-center gap-2 font-bold"><AlertCircle size={16} /> Login Error</div>
+                            <p>{error}</p>
+                            <div className="text-xs text-red-400 mt-1 pt-2 border-t border-red-100">
+                                Check backend logs or try again in a few seconds (Cold Start).
+                            </div>
                         </div>
                     )}
                     
@@ -491,13 +516,14 @@ export default function App() {
                         If stuck, Backend is likely down.
                     </div>
 
-                    <Button fullWidth onClick={() => handleAuth()} className="mb-4">Mock Login (Dev Only)</Button>
+                    <Button fullWidth onClick={() => handleMockLogin()} className="mb-4">Mock Login (Dev Only)</Button>
                     
                     <div className="w-full">
                         <IDKitWidget 
                             app_id={WORLD_ID_APP_ID} 
                             action={WORLD_ID_ACTION} 
-                            onSuccess={handleWorldIDSuccess} 
+                            onSuccess={onSuccess} 
+                            handleVerify={handleVerify}
                             verification_level={VerificationLevel.Device}
                         >
                             {({ open }: any) => (
