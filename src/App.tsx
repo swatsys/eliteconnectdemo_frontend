@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Heart, X, MessageCircle, Home, Wallet, User, 
-  Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap
+  Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap, Loader2
 } from 'lucide-react';
 import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
 
@@ -11,7 +11,7 @@ const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
 const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
-const WORLD_ID_ACTION = 'signn';
+const WORLD_ID_ACTION = 'signin';
 
 // --- TYPES ---
 enum ViewState {
@@ -354,6 +354,7 @@ export default function App() {
   const [activeMessages, setActiveMessages] = useState<any[]>([]);
   const [exploreProfile, setExploreProfile] = useState<any>(null);
   const [error, setError] = useState<string>('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => { 
       if (token) fetchUserData(); 
@@ -408,7 +409,7 @@ export default function App() {
       try { const res = await fetch(`${API_URL}/chat/${matchId}`, { headers: { 'Authorization': token || '' } }); const data = await res.json(); if(data.success) setActiveMessages(data.messages); } catch(e) { console.error(e); }
   };
 
-  // GENERIC LOGIN FUNCTION (Used by Mock & World ID)
+  // LOGIN FUNCTION
   const loginUser = async (proof: any) => {
     try {
         const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proof }) });
@@ -423,33 +424,48 @@ export default function App() {
         }
     } catch (e: any) {
         console.error("Login failed:", e);
-        throw e; // Re-throw to be handled by caller
+        throw e;
     }
   };
   
   // MOCK LOGIN HANDLER
   const handleMockLogin = async () => {
+      setIsLoggingIn(true);
       try {
           await loginUser('mock');
       } catch (e: any) {
           alert(`Login failed: ${e.message}`);
           setError("Login Error: " + e.message); 
+      } finally {
+          setIsLoggingIn(false);
       }
   };
 
   // WORLD ID HANDLERS
-  // 1. handleVerify: Called by IDKit *during* verification. We must return a Promise.
-  //    If this rejects, IDKit shows an error. If resolves, IDKit shows success.
+  
+  // 1. handleVerify: Validates the proof LOCALLY just to satisfy the widget.
+  //    We DO NOT call the backend here to prevent timeouts.
   const handleVerify = async (result: any) => {
-      console.log("Verifying proof with backend...", result);
-      // We return the promise from loginUser directly
-      await loginUser(result);
+      console.log("Proof received from World ID, validating structure...", result);
+      if (!result || !result.nullifier_hash) {
+          throw new Error("Invalid proof received");
+      }
+      // Return successfully to close the widget immediately
+      return; 
   };
 
-  // 2. onSuccess: Called after handleVerify resolves and modal closes.
-  const onSuccess = () => {
-      console.log("Verification successful & Login complete.");
-      // Token is already set by loginUser, so view will update automatically via useEffect
+  // 2. onSuccess: Called after widget closes. Now we call the backend.
+  const onSuccess = (result: any) => {
+      console.log("Widget closed, starting backend login...");
+      setIsLoggingIn(true);
+      loginUser(result)
+        .catch(e => {
+            alert("Backend Login Failed: " + e.message);
+            setError("Login Error: " + e.message);
+        })
+        .finally(() => {
+            setIsLoggingIn(false);
+        });
   };
 
   const handleProfileSubmit = async (p: any) => {
@@ -497,16 +513,23 @@ export default function App() {
         <div className="h-full overflow-hidden flex flex-col">
             {view === ViewState.SPLASH && <SplashView onStart={() => setView(token ? ViewState.HOME : ViewState.AUTH)} />}
             {view === ViewState.AUTH && (
-                 <div className="h-full flex flex-col items-center justify-center p-8 bg-white">
+                 <div className="h-full flex flex-col items-center justify-center p-8 bg-white relative">
+                    {isLoggingIn && (
+                        <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+                            <Loader2 className="animate-spin text-purple-600 mb-4" size={48} />
+                            <p className="font-bold text-slate-800">Logging in...</p>
+                            <p className="text-xs text-slate-500 mt-2">Connecting to secure server</p>
+                        </div>
+                    )}
+
                     <h2 className="text-2xl font-bold mb-8">Verify to Continue</h2>
                     
-                    {/* VISIBLE ERROR BOX for Mobile Debugging */}
                     {error && (
                         <div className="w-full mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex flex-col gap-2">
                             <div className="flex items-center gap-2 font-bold"><AlertCircle size={16} /> Login Error</div>
                             <p>{error}</p>
                             <div className="text-xs text-red-400 mt-1 pt-2 border-t border-red-100">
-                                Check backend logs or try again in a few seconds (Cold Start).
+                                Check backend logs or try again in a few seconds.
                             </div>
                         </div>
                     )}
