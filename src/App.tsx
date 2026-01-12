@@ -10,7 +10,7 @@ const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
 const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
-const WORLD_ID_ACTION = 'signin';
+const WORLD_ID_ACTION = 'login';
 
 // --- TYPES ---
 enum ViewState {
@@ -354,14 +354,7 @@ export default function App() {
   const [exploreProfile, setExploreProfile] = useState<any>(null);
   const [error, setError] = useState<string>('');
 
-  useEffect(() => { 
-      if (token) fetchUserData(); 
-      // Safe check for ID
-      if (WORLD_ID_APP_ID.includes('12345') && view === ViewState.AUTH) {
-          setError("Configuration Error: Please update WORLD_ID_APP_ID in App.tsx");
-      }
-  }, [token, view]);
-  
+  useEffect(() => { if (token) fetchUserData(); }, [token]);
   useEffect(() => {
     if (view === ViewState.EXPLORE) fetchExploreProfile();
     if (view === ViewState.MATCHES) fetchMatches();
@@ -412,12 +405,13 @@ export default function App() {
     try {
       const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ proof: proof || 'mock' }) });
       
+      const data = await res.json();
+      
       if(!res.ok) {
-          const text = await res.text();
-          throw new Error(`Server error: ${res.status} - ${text}`);
+          // THROW THE ACTUAL SERVER ERROR
+          throw new Error(data.error || `Server error: ${res.status}`);
       }
       
-      const data = await res.json();
       if (data.success) { 
           localStorage.setItem('elite_token', data.token); 
           setToken(data.token); 
@@ -426,8 +420,8 @@ export default function App() {
     } catch (e: any) { 
         console.error("Login failed:", e);
         // CRITICAL: Alert the user so they see it on mobile
-        alert(`Login failed: ${e.message}. Backend may be down.`);
-        setError("Server connection error. Check API_URL."); 
+        alert(`Login failed: ${e.message}`);
+        setError("Login Error: " + e.message); 
     }
   };
   
