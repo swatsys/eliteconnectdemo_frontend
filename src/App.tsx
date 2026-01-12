@@ -9,7 +9,7 @@ import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
 const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
-const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS
+const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
 const WORLD_ID_ACTION = 'signin';
 
 // --- TYPES ---
@@ -354,7 +354,14 @@ export default function App() {
   const [exploreProfile, setExploreProfile] = useState<any>(null);
   const [error, setError] = useState<string>('');
 
-  useEffect(() => { if (token) fetchUserData(); }, [token]);
+  useEffect(() => { 
+      if (token) fetchUserData(); 
+      // Safe check for ID
+      if (WORLD_ID_APP_ID.includes('12345') && view === ViewState.AUTH) {
+          setError("Configuration Error: Please update WORLD_ID_APP_ID in App.tsx");
+      }
+  }, [token, view]);
+  
   useEffect(() => {
     if (view === ViewState.EXPLORE) fetchExploreProfile();
     if (view === ViewState.MATCHES) fetchMatches();
