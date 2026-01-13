@@ -10,8 +10,8 @@ import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
 const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
-const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
-const WORLD_ID_ACTION = 'signin';
+const WORLD_ID_APP_ID = 'app_staging_12345'; // <--- CHANGE THIS TO YOUR REAL APP ID
+const WORLD_ID_ACTION = 'login';
 
 // --- TYPES ---
 enum ViewState {
@@ -426,17 +426,15 @@ export default function App() {
                 body: JSON.stringify({ proof }) 
             });
             
+            // CRITICAL FIX: Always try to parse JSON to get the real error message
+            const data = await res.json().catch(() => null);
+
             if (!res.ok) {
-                // If it's a 4xx error (client side), don't retry.
-                if (res.status >= 400 && res.status < 500) {
-                     const data = await res.json();
-                     throw new Error(data.error || `Client error: ${res.status}`);
-                }
-                // If 5xx (server), retry.
-                throw new Error(`Server error: ${res.status}`);
+                // Use the error message from server if available
+                const errorMessage = data?.error || `Server Error: ${res.status}`;
+                throw new Error(errorMessage);
             }
             
-            const data = await res.json();
             if (data.success) { 
                 localStorage.setItem('elite_token', data.token); 
                 setToken(data.token); 
@@ -455,6 +453,12 @@ export default function App() {
             console.error(`Attempt ${attempt + 1} failed:`, e);
             lastError = e;
             attempt++;
+            
+            // Don't retry client errors (4xx)
+            if (e.message.includes('400') || e.message.includes('401')) {
+                break;
+            }
+
             if (attempt < maxRetries) {
                 // Wait 2 seconds before retry
                 await new Promise(r => setTimeout(r, 2000));
@@ -499,7 +503,7 @@ export default function App() {
       loginUser(result)
         .catch(e => {
             console.error("Final login failure:", e);
-            setError(`Login Failed: ${e.message}.`);
+            setError(`Login Failed: ${e.message}`);
         })
         .finally(() => {
             setIsLoggingIn(false);
@@ -565,7 +569,7 @@ export default function App() {
                     {error && (
                         <div className="w-full mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex flex-col gap-2">
                             <div className="flex items-center gap-2 font-bold"><AlertCircle size={16} /> Login Error</div>
-                            <p>{error}</p>
+                            <p className="break-words">{error}</p>
                             
                             {/* Manual Retry Button */}
                             {lastProof && (
@@ -578,7 +582,7 @@ export default function App() {
                             )}
                             
                             <div className="text-xs text-red-400 mt-1 pt-2 border-t border-red-100">
-                                Check backend logs or try again in a few seconds.
+                                Try again. If error persists, check backend.
                             </div>
                         </div>
                     )}
