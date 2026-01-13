@@ -6,12 +6,11 @@ import {
 import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
 
 // --- CONFIGURATION ---
-// CRITICAL: Force using the Render Backend
+// CRITICAL: Always use the Render URL for production deployment
 const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
-// If you are using the Simulator, use a Staging ID. If using the real World App, use your Production/Staging ID.
-const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; 
+const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
 const WORLD_ID_ACTION = 'signin';
 
 // --- TYPES ---
