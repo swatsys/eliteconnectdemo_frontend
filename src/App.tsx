@@ -6,11 +6,12 @@ import {
 import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
 
 // --- CONFIGURATION ---
-// CRITICAL: Always use the Render URL for production deployment
+// CRITICAL: Force using the Render Backend
 const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
-const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
+// If you are using the Simulator, use a Staging ID. If using the real World App, use your Production/Staging ID.
+const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; 
 const WORLD_ID_ACTION = 'signin';
 
 // --- TYPES ---
@@ -480,6 +481,7 @@ export default function App() {
   // WORLD ID HANDLERS
   
   // 1. handleVerify: Validates the proof LOCALLY just to satisfy the widget.
+  //    We DO NOT call the backend here to prevent timeouts.
   const handleVerify = async (result: any) => {
       console.log("Proof received from World ID, validating structure...", result);
       if (!result || !result.nullifier_hash) {
