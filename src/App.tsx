@@ -1,21 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Heart, X, MessageCircle, Home, Wallet, User,
-  Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap, Loader2, RefreshCw
+  Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap, Loader2
 } from 'lucide-react';
-import { MiniKit, VerifyCommandInput, VerificationLevel } from '@worldcoin/minikit-js';
+import { MiniKit, VerifyCommandInput, VerificationLevel, ResponseEvent, MiniAppVerifyActionPayload } from '@worldcoin/minikit-js';
 
 // --- CONFIGURATION ---
-// VERCEL DEPLOYMENT: Use relative path. Vercel routes /api requests to the backend function.
-// TODO: Update this to your actual Vercel backend production URL
 const API_URL = 'https://eliteconnectdemo-backend-swatsys-projects.vercel.app/api';
-
-// !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
-const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
+const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162';
 const WORLD_ID_ACTION = 'signin';
-
-// Note: MiniKit.install() is called in index.tsx BEFORE React renders
-// This ensures World App detection works properly
 
 // --- TYPES ---
 enum ViewState {
@@ -40,9 +33,9 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
     ghost: "bg-transparent text-slate-500 hover:text-slate-900",
     premium: "bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-500/30"
   };
-  
+
   return (
-    <button 
+    <button
       onClick={onClick}
       disabled={disabled}
       className={`${baseStyle} ${variants[variant as keyof typeof variants]} ${fullWidth ? 'w-full' : ''} ${className}`}
@@ -67,7 +60,7 @@ const BottomNav = ({ currentView, setView }: { currentView: ViewState, setView: 
       {navItems.map((item) => {
         const isActive = currentView === item.id;
         return (
-          <button 
+          <button
             key={item.id}
             onClick={() => setView(item.id)}
             className={`flex flex-col items-center gap-1 transition-colors ${isActive ? 'text-purple-600' : 'text-slate-400'}`}
@@ -138,7 +131,6 @@ const HomeView = ({ user, setView }: any) => (
 );
 
 const WalletView = ({ user, onUpgrade }: any) => {
-    // Subscription Logic
     const isPremium = user?.subscription?.active;
     const expiryDate = user?.subscription?.expiresAt ? new Date(user.subscription.expiresAt).toLocaleDateString() : '';
 
@@ -147,9 +139,9 @@ const WalletView = ({ user, onUpgrade }: any) => {
         if (w.jspdf) {
             const { jsPDF } = w.jspdf;
             const doc = new jsPDF();
-            doc.setFillColor(20, 20, 24); 
+            doc.setFillColor(20, 20, 24);
             doc.rect(10, 10, 190, 100, 'F');
-            const color = isPremium ? [251, 191, 36] : [168, 85, 247]; 
+            const color = isPremium ? [251, 191, 36] : [168, 85, 247];
             doc.setDrawColor(color[0], color[1], color[2]);
             doc.setLineWidth(2);
             doc.rect(15, 15, 180, 90);
@@ -173,7 +165,7 @@ const WalletView = ({ user, onUpgrade }: any) => {
     return (
     <div className="h-full bg-slate-50 p-6 pt-10 flex flex-col">
         <div className="flex items-center gap-2 mb-6"><h1 className="text-2xl font-bold text-slate-900">Wallet & Plans</h1></div>
-        
+
         <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl shadow-slate-900/20 mb-6 flex justify-between items-center">
             <div>
                 <p className="text-slate-400 text-sm font-medium">Available Balance</p>
@@ -319,28 +311,37 @@ export default function App() {
   const [exploreProfile, setExploreProfile] = useState<any>(null);
   const [error, setError] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+
+  // Debug logging
+  const addDebug = (msg: string) => {
+    console.log(msg);
+    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  };
 
   // Check MiniKit on mount
   useEffect(() => {
-    console.log('App mounted. MiniKit.isInstalled():', MiniKit.isInstalled());
-    console.log('User agent:', navigator.userAgent);
+    addDebug('App mounted');
+    addDebug(`MiniKit.isInstalled(): ${MiniKit.isInstalled()}`);
+    addDebug(`User agent: ${navigator.userAgent}`);
+    addDebug(`Window location: ${window.location.href}`);
   }, []);
 
-  useEffect(() => { 
-      if (token) fetchUserData(); 
+  useEffect(() => {
+      if (token) fetchUserData();
   }, [token, view]);
-  
+
   useEffect(() => {
     if (view === ViewState.EXPLORE) fetchExploreProfile();
     if (view === ViewState.MATCHES) fetchMatches();
-    if (view === ViewState.WALLET) fetchUserData(); 
+    if (view === ViewState.WALLET) fetchUserData();
   }, [view]);
 
   useEffect(() => {
       let interval: any;
       if (view === ViewState.CHAT && activeChat) {
           fetchMessages(activeChat.matchId);
-          interval = setInterval(() => fetchMessages(activeChat.matchId), 2000);
+          interval = setInterval(() => fetchMessages(activeChat.matchId), 3000);
       }
       return () => clearInterval(interval);
   }, [view, activeChat]);
@@ -348,66 +349,130 @@ export default function App() {
   // --- API ---
   const fetchUserData = async () => {
     try {
-      const res = await fetch(`${API_URL}/me`, { headers: { 'Authorization': token || '' } });
+      addDebug('Fetching user data...');
+      const res = await fetch(`${API_URL}/me`, {
+        headers: { 'Authorization': token || '' },
+        signal: AbortSignal.timeout(15000) // 15 second timeout
+      });
+
       if (res.status === 401) {
+          addDebug('Unauthorized, clearing token');
           localStorage.removeItem('elite_token');
           setToken(null);
           setView(ViewState.AUTH);
           return;
       }
+
       const data = await res.json();
-      if (data.success) { setUser(data.user); setView(ViewState.HOME); } else { setView(ViewState.ONBOARDING); }
-    } catch { 
-        setError("Cannot connect to server.");
-        setView(ViewState.AUTH); 
+      addDebug(`User data received: ${JSON.stringify(data).substring(0, 100)}`);
+
+      if (data.success) {
+        setUser(data.user);
+        setView(ViewState.HOME);
+      } else {
+        setView(ViewState.ONBOARDING);
+      }
+    } catch (err: any) {
+        addDebug(`Fetch error: ${err.message}`);
+        setError("Cannot connect to server. Check your connection.");
+        setView(ViewState.AUTH);
     }
   };
+
   const fetchExploreProfile = async () => {
-    try { const res = await fetch(`${API_URL}/explore`, { headers: { 'Authorization': token || '' } }); const data = await res.json(); setExploreProfile(data.success ? data.profile : null); } catch (e) { console.error(e); }
+    try {
+      const res = await fetch(`${API_URL}/explore`, {
+        headers: { 'Authorization': token || '' },
+        signal: AbortSignal.timeout(10000)
+      });
+      const data = await res.json();
+      setExploreProfile(data.success ? data.profile : null);
+    } catch (e: any) {
+      addDebug(`Explore error: ${e.message}`);
+    }
   };
+
   const fetchMatches = async () => {
-    try { const res = await fetch(`${API_URL}/matches`, { headers: { 'Authorization': token || '' } }); const data = await res.json(); if(data.success) setMatches(data.matches); } catch(e) { console.error(e); }
+    try {
+      const res = await fetch(`${API_URL}/matches`, {
+        headers: { 'Authorization': token || '' },
+        signal: AbortSignal.timeout(10000)
+      });
+      const data = await res.json();
+      if(data.success) setMatches(data.matches);
+    } catch(e: any) {
+      addDebug(`Matches error: ${e.message}`);
+    }
   };
+
   const fetchMessages = async (matchId: string) => {
-      try { const res = await fetch(`${API_URL}/chat/${matchId}`, { headers: { 'Authorization': token || '' } }); const data = await res.json(); if(data.success) setActiveMessages(data.messages); } catch(e) { console.error(e); }
+      try {
+        const res = await fetch(`${API_URL}/chat/${matchId}`, {
+          headers: { 'Authorization': token || '' },
+          signal: AbortSignal.timeout(10000)
+        });
+        const data = await res.json();
+        if(data.success) setActiveMessages(data.messages);
+      } catch(e: any) {
+        addDebug(`Messages error: ${e.message}`);
+      }
   };
 
   const loginUser = async (proof: any) => {
     try {
-        const res = await fetch(`${API_URL}/auth/login`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify({ proof }) 
+        addDebug(`Logging in with proof: ${JSON.stringify(proof).substring(0, 100)}`);
+
+        const res = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proof }),
+            signal: AbortSignal.timeout(15000) // 15 second timeout
         });
+
         const data = await res.json();
-        if (data.success) { 
-            localStorage.setItem('elite_token', data.token); 
-            setToken(data.token); 
+        addDebug(`Login response: ${JSON.stringify(data).substring(0, 100)}`);
+
+        if (data.success) {
+            localStorage.setItem('elite_token', data.token);
+            setToken(data.token);
             setError('');
-            if (data.isNew) setView(ViewState.ONBOARDING);
-            else setView(ViewState.HOME);
+            setIsLoggingIn(false);
+
+            if (data.isNew) {
+              addDebug('New user, showing onboarding');
+              setView(ViewState.ONBOARDING);
+            } else {
+              addDebug('Existing user, loading home');
+              setView(ViewState.HOME);
+            }
         } else {
             throw new Error(data.error || "Login error");
         }
     } catch (e: any) {
+        addDebug(`Login error: ${e.message}`);
         setError(`Login Failed: ${e.message}`);
+        setIsLoggingIn(false);
     }
   };
-  
+
   const handleMockLogin = async () => {
+      addDebug('Using mock login for development');
       setIsLoggingIn(true);
-      try { await loginUser('mock'); } finally { setIsLoggingIn(false); }
+      try {
+        await loginUser('mock');
+      } finally {
+        setIsLoggingIn(false);
+      }
   };
 
-  const handleWorldIDLogin = async () => {
-      console.log('=== World ID Login Started ===');
-      console.log('MiniKit.isInstalled():', MiniKit.isInstalled());
-      console.log('User agent:', navigator.userAgent);
+  const handleWorldIDLogin = () => {
+      addDebug('=== World ID Login Started ===');
+      addDebug(`MiniKit.isInstalled(): ${MiniKit.isInstalled()}`);
 
-      // If not in World App, use mock login
+      // Check if in World App
       if (!MiniKit.isInstalled()) {
-          console.warn('Not in World App, using mock login');
-          await handleMockLogin();
+          addDebug('Not in World App, using mock login');
+          handleMockLogin();
           return;
       }
 
@@ -420,86 +485,211 @@ export default function App() {
               verification_level: VerificationLevel.Device
           };
 
-          console.log('Calling MiniKit.commandsAsync.verify with payload:', verifyPayload);
+          addDebug(`Calling MiniKit.commands.verify with action: ${WORLD_ID_ACTION}`);
 
-          // OFFICIAL DOCS METHOD: Use async/await
-          const { finalPayload } = await MiniKit.commandsAsync.verify(verifyPayload);
+          // Use the subscribe pattern (more reliable for mini apps)
+          MiniKit.subscribe(
+              ResponseEvent.MiniAppVerifyAction,
+              async (response: MiniAppVerifyActionPayload) => {
+                  addDebug(`Received response: ${JSON.stringify(response).substring(0, 200)}`);
 
-          console.log('Verification completed. finalPayload:', finalPayload);
+                  if (response.status === 'error') {
+                      addDebug(`Verification error: ${response.error_code}`);
+                      setError(`Verification failed: ${response.error_code || 'Unknown error'}`);
+                      setIsLoggingIn(false);
+                      return;
+                  }
 
-          if (finalPayload.status === 'error') {
-              console.error('Verification failed:', finalPayload);
-              setError('Verification failed. Please try again.');
-              setIsLoggingIn(false);
-              return;
-          }
+                  if (response.status === 'success') {
+                      addDebug('Verification successful, logging in...');
+                      await loginUser(response);
+                  }
+              }
+          );
 
-          console.log('Verification successful, logging in...');
-          await loginUser(finalPayload);
+          // Trigger the verification
+          MiniKit.commands.verify(verifyPayload);
+          addDebug('Verify command sent, waiting for response...');
+
+          // Timeout handler
+          setTimeout(() => {
+              if (isLoggingIn) {
+                  addDebug('Verification timeout after 30 seconds');
+                  setError('Verification timed out. Please try again.');
+                  setIsLoggingIn(false);
+              }
+          }, 30000); // 30 second timeout
 
       } catch (error: any) {
-          console.error('World ID verification error:', error);
+          addDebug(`World ID verification error: ${error.message}`);
           setError('Verification error: ' + error.message);
           setIsLoggingIn(false);
       }
   };
 
   const handleProfileSubmit = async (p: any) => {
-    await fetch(`${API_URL}/auth/onboard`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' }, body: JSON.stringify(p) }); fetchUserData();
+    addDebug('Submitting profile...');
+    await fetch(`${API_URL}/auth/onboard`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token || ''
+      },
+      body: JSON.stringify(p),
+      signal: AbortSignal.timeout(10000)
+    });
+    fetchUserData();
   };
+
   const handleLike = async () => {
     if(!exploreProfile) return;
-    await fetch(`${API_URL}/explore/like`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' }, body: JSON.stringify({ targetId: exploreProfile.worldId }) }); fetchExploreProfile();
+    await fetch(`${API_URL}/explore/like`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token || ''
+      },
+      body: JSON.stringify({ targetId: exploreProfile.worldId }),
+      signal: AbortSignal.timeout(10000)
+    });
+    fetchExploreProfile();
   };
+
   const handleUnlock = async (matchId: string) => {
       const msg = user?.subscription?.active ? "Unlock?" : "Unlock (5 WLD)?";
       if(!confirm(msg)) return;
       try {
-          const res = await fetch(`${API_URL}/matches/unlock`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' }, body: JSON.stringify({ matchId }) });
+          const res = await fetch(`${API_URL}/matches/unlock`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token || ''
+            },
+            body: JSON.stringify({ matchId }),
+            signal: AbortSignal.timeout(10000)
+          });
           const data = await res.json();
-          if(data.success) { alert("Unlocked!"); fetchMatches(); fetchUserData(); } else { alert(data.error); }
-      } catch(e) { console.error(e); }
+          if(data.success) {
+            alert("Unlocked!");
+            fetchMatches();
+            fetchUserData();
+          } else {
+            alert(data.error);
+          }
+      } catch(e: any) {
+        addDebug(`Unlock error: ${e.message}`);
+      }
   };
+
   const handleSendMessage = async (text: string) => {
       if(!activeChat || !text.trim()) return;
-      await fetch(`${API_URL}/chat/send`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' }, body: JSON.stringify({ matchId: activeChat.matchId, text }) });
+      await fetch(`${API_URL}/chat/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token || ''
+        },
+        body: JSON.stringify({ matchId: activeChat.matchId, text }),
+        signal: AbortSignal.timeout(10000)
+      });
       fetchMessages(activeChat.matchId);
   }
+
   const handleUpgrade = async () => {
       if(!confirm("Upgrade (3 WLD)?")) return;
       try {
-          const res = await fetch(`${API_URL}/subscription/upgrade`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' } });
+          const res = await fetch(`${API_URL}/subscription/upgrade`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token || ''
+            },
+            signal: AbortSignal.timeout(10000)
+          });
           const data = await res.json();
-          if(data.success) { alert("Upgraded!"); fetchUserData(); } else { alert(data.error); }
-      } catch (e) { console.error(e); }
+          if(data.success) {
+            alert("Upgraded!");
+            fetchUserData();
+          } else {
+            alert(data.error);
+          }
+      } catch (e: any) {
+        addDebug(`Upgrade error: ${e.message}`);
+      }
   };
 
   return (
     <div className="h-full w-full bg-white relative">
         <div className="h-full overflow-hidden flex flex-col">
             {view === ViewState.SPLASH && <SplashView onStart={() => setView(token ? ViewState.HOME : ViewState.AUTH)} />}
+
             {view === ViewState.AUTH && (
                  <div className="h-full flex flex-col items-center justify-center p-8 bg-white relative">
                     {isLoggingIn && (
-                        <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center text-center p-6">
+                        <div className="absolute inset-0 bg-white/95 z-50 flex flex-col items-center justify-center text-center p-6">
                             <Loader2 className="animate-spin text-purple-600 mb-4" size={48} />
-                            <p className="font-bold text-slate-800">Logging in...</p>
+                            <p className="font-bold text-slate-800 mb-2">Verifying with World ID...</p>
+                            <p className="text-xs text-slate-500">This may take a few seconds</p>
                         </div>
                     )}
-                    <h2 className="text-2xl font-bold mb-8">Verify to Continue</h2>
-                    {error && <div className="w-full mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-xl"><AlertCircle size={16} className="inline mr-2"/>{error}</div>}
-                    {!MiniKit.isInstalled() && (
-                        <Button fullWidth onClick={() => handleMockLogin()} className="mb-4">Mock Login (Dev Mode)</Button>
-                    )}
-                    <div className="w-full">
-                        <Button fullWidth variant="secondary" onClick={handleWorldIDLogin} icon={<Globe size={18} />}>
-                            Verify with World ID
-                        </Button>
+
+                    <div className="w-full max-w-sm">
+                        <div className="text-center mb-8">
+                            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-glow">
+                                <Heart className="text-white w-10 h-10 fill-white" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-900 mb-2">Welcome to Elite Connect</h2>
+                            <p className="text-slate-500 text-sm">Verify with World ID to continue</p>
+                        </div>
+
+                        {error && (
+                            <div className="w-full mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100">
+                                <div className="flex items-start gap-2">
+                                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0"/>
+                                    <div>{error}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-3">
+                            <Button
+                                fullWidth
+                                onClick={handleWorldIDLogin}
+                                icon={<Shield size={18} />}
+                                disabled={isLoggingIn}
+                            >
+                                {MiniKit.isInstalled() ? 'Verify with World ID' : 'Open in World App'}
+                            </Button>
+
+                            {!MiniKit.isInstalled() && (
+                                <Button
+                                    fullWidth
+                                    variant="secondary"
+                                    onClick={handleMockLogin}
+                                    disabled={isLoggingIn}
+                                >
+                                    Mock Login (Dev Mode)
+                                </Button>
+                            )}
+                        </div>
+
+                        {/* Debug Info (only show if there are errors) */}
+                        {debugInfo.length > 0 && error && (
+                            <details className="mt-6 text-xs">
+                                <summary className="text-slate-400 cursor-pointer">Debug Info</summary>
+                                <div className="mt-2 p-3 bg-slate-50 rounded-lg max-h-40 overflow-y-auto">
+                                    {debugInfo.slice(-10).map((msg, i) => (
+                                        <div key={i} className="text-slate-600 font-mono">{msg}</div>
+                                    ))}
+                                </div>
+                            </details>
+                        )}
                     </div>
                  </div>
             )}
+
             {view === ViewState.ONBOARDING && <OnboardingView onSubmit={handleProfileSubmit} />}
-            
+
             {(view === ViewState.HOME || view === ViewState.EXPLORE || view === ViewState.MATCHES || view === ViewState.WALLET || view === ViewState.PROFILE) && (
                 <>
                     <div className="flex-1 overflow-hidden relative">
@@ -512,7 +702,7 @@ export default function App() {
                     <BottomNav currentView={view} setView={setView} />
                 </>
             )}
-            
+
             {view === ViewState.CHAT && activeChat && (
                 <ChatScreen match={activeChat} messages={activeMessages} onSend={handleSendMessage} onBack={() => setView(ViewState.MATCHES)} />
             )}
