@@ -327,9 +327,13 @@ export default function App() {
     addDebug(`Window location: ${window.location.href}`);
   }, []);
 
+  // Check auth on initial mount if token exists
   useEffect(() => {
-      if (token) fetchUserData();
-  }, [token, view]);
+      if (token && view === ViewState.SPLASH) {
+        // Returning user - fetch their data
+        fetchUserData();
+      }
+  }, []);
 
   useEffect(() => {
     if (view === ViewState.EXPLORE) fetchExploreProfile();
@@ -368,7 +372,12 @@ export default function App() {
 
       if (data.success) {
         setUser(data.user);
-        setView(ViewState.HOME);
+        // Only go to HOME if user has completed their profile
+        if (data.user && data.user.name) {
+          setView(ViewState.HOME);
+        } else {
+          setView(ViewState.ONBOARDING);
+        }
       } else {
         setView(ViewState.ONBOARDING);
       }
@@ -442,8 +451,9 @@ export default function App() {
               addDebug('New user, showing onboarding');
               setView(ViewState.ONBOARDING);
             } else {
-              addDebug('Existing user, loading home');
-              setView(ViewState.HOME);
+              addDebug('Existing user, fetching user data');
+              // For existing users, fetch their full profile
+              fetchUserData();
             }
         } else {
             throw new Error(data.error || "Login error");
