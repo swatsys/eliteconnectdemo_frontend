@@ -7,7 +7,7 @@ import { MiniKit, VerifyCommandInput, VerificationLevel } from '@worldcoin/minik
 
 // --- CONFIGURATION ---
 // VERCEL DEPLOYMENT: Use relative path. Vercel routes /api requests to the backend function.
-const API_URL = '/api';
+const API_URL = 'https://eliteconnectdemo-backend-swatsys-projects.vercel.app/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
 const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
