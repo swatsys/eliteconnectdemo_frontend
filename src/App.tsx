@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { 
-  Heart, X, MessageCircle, Home, Wallet, User, 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Heart, X, MessageCircle, Home, Wallet, User,
   Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap, Loader2, RefreshCw
 } from 'lucide-react';
-import { IDKitWidget, VerificationLevel } from '@worldcoin/idkit';
+import { MiniKit, VerifyCommandInput, VerificationLevel } from '@worldcoin/minikit-js';
 
 // --- CONFIGURATION ---
-// CRITICAL: Always use the Render URL for production deployment
-const API_URL = 'https://eliteconnectdemo-backend.onrender.com/api';
+// VERCEL DEPLOYMENT: Use relative path. Vercel routes /api requests to the backend function.
+const API_URL = '/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
 const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
@@ -134,11 +134,6 @@ const HomeView = ({ user, setView }: any) => (
 );
 
 const WalletView = ({ user, onUpgrade }: any) => {
-    // 2 Free unlocks logic
-    const FREE_LIMIT = 2;
-    const used = user?.freeUnlocksUsed || 0;
-    const remaining = Math.max(0, FREE_LIMIT - used);
-    
     // Subscription Logic
     const isPremium = user?.subscription?.active;
     const expiryDate = user?.subscription?.expiresAt ? new Date(user.subscription.expiresAt).toLocaleDateString() : '';
@@ -148,34 +143,23 @@ const WalletView = ({ user, onUpgrade }: any) => {
         if (w.jspdf) {
             const { jsPDF } = w.jspdf;
             const doc = new jsPDF();
-            
-            // Design: Dark Luxury Card
-            doc.setFillColor(20, 20, 24); // Dark slate
+            doc.setFillColor(20, 20, 24); 
             doc.rect(10, 10, 190, 100, 'F');
-            
-            // Border
-            const color = isPremium ? [251, 191, 36] : [168, 85, 247]; // Gold if premium, Purple if free
+            const color = isPremium ? [251, 191, 36] : [168, 85, 247]; 
             doc.setDrawColor(color[0], color[1], color[2]);
             doc.setLineWidth(2);
             doc.rect(15, 15, 180, 90);
-
-            // Title
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(24);
             doc.text(isPremium ? "ELITE PREMIUM" : "ELITE CONNECT", 105, 40, { align: "center" });
-            
             doc.setFontSize(14);
             doc.setTextColor(color[0], color[1], color[2]);
             doc.text("OFFICIAL MEMBERSHIP CARD", 105, 50, { align: "center" });
-
-            // User Info
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(16);
             doc.text(`Name: ${user?.name || 'Unknown'}`, 30, 70);
             doc.text(`ID: ${user?.worldId?.substring(0, 10)}...`, 30, 85);
             doc.text(`Plan: ${isPremium ? 'UNLIMITED' : 'STANDARD'}`, 30, 100);
-
-            // Save
             doc.save("Elite_Membership_Card.pdf");
         } else {
             alert("PDF Generator loading...");
@@ -186,7 +170,6 @@ const WalletView = ({ user, onUpgrade }: any) => {
     <div className="h-full bg-slate-50 p-6 pt-10 flex flex-col">
         <div className="flex items-center gap-2 mb-6"><h1 className="text-2xl font-bold text-slate-900">Wallet & Plans</h1></div>
         
-        {/* Balance Card */}
         <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl shadow-slate-900/20 mb-6 flex justify-between items-center">
             <div>
                 <p className="text-slate-400 text-sm font-medium">Available Balance</p>
@@ -197,53 +180,35 @@ const WalletView = ({ user, onUpgrade }: any) => {
             </div>
         </div>
 
-        {/* Current Plan Status */}
         <div className="bg-white rounded-3xl p-6 shadow-soft mb-6 border border-slate-100">
             <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
                 {isPremium ? <Crown className="text-amber-400 fill-amber-400" size={20} /> : <User size={20} />}
                 Current Plan: {isPremium ? 'Premium Elite' : 'Standard'}
             </h3>
-            
             {isPremium ? (
                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
                     <p className="text-amber-800 font-bold text-sm">Status: Active</p>
                     <p className="text-amber-600 text-xs mt-1">Expires: {expiryDate}</p>
-                    <div className="mt-3 flex items-center gap-2 text-sm text-amber-700">
-                        <CheckCircle size={16} /> Unlimited Chats
-                    </div>
                 </div>
             ) : (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                     <div className="flex justify-between items-end mb-2">
-                        <p className="text-slate-700 font-bold text-sm">Free Connections</p>
-                        <p className="text-purple-600 font-bold text-lg">{remaining} <span className="text-slate-400 text-xs font-normal">/ {FREE_LIMIT}</span></p>
-                     </div>
-                     <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                         <div className="h-full bg-purple-500" style={{ width: `${(remaining/FREE_LIMIT)*100}%` }}></div>
-                     </div>
-                     <p className="text-xs text-slate-400 mt-2">After limit: 5 WLD per chat</p>
+                     <p className="text-xs text-slate-400">Unlock Chat: 5 WLD</p>
                 </div>
             )}
         </div>
 
-        {/* Upgrade Offer (Only if not premium) */}
         {!isPremium && (
             <div className="bg-gradient-to-br from-indigo-900 to-purple-900 rounded-3xl p-6 text-white shadow-xl shadow-purple-900/20 mb-6 relative overflow-hidden">
                  <div className="absolute top-0 right-0 p-4 opacity-10"><Zap size={80} /></div>
                  <div className="relative z-10">
                      <h3 className="text-xl font-bold mb-1">Upgrade to Elite</h3>
-                     <p className="text-purple-200 text-sm mb-4">Get unlimited connections for 30 days.</p>
-                     <div className="flex items-end gap-2 mb-4">
-                         <span className="text-3xl font-bold">3 WLD</span>
-                         <span className="text-purple-300 text-sm mb-1">/ month</span>
-                     </div>
-                     <Button variant="premium" fullWidth onClick={onUpgrade} icon={<Crown size={18} />}>Upgrade Now</Button>
+                     <p className="text-purple-200 text-sm mb-4">Unlimited connections.</p>
+                     <Button variant="premium" fullWidth onClick={onUpgrade} icon={<Crown size={18} />}>Upgrade (3 WLD)</Button>
                  </div>
             </div>
         )}
-
         <div className="flex-1"></div>
-        <Button fullWidth onClick={generatePDF} icon={<Download size={18} />} variant="secondary">Download Member Card</Button>
+        <Button fullWidth onClick={generatePDF} icon={<Download size={18} />} variant="secondary">Download Card</Button>
     </div>
     );
 };
@@ -255,8 +220,8 @@ const MatchesView = ({ matches, onSelect, setView }: any) => (
         <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4"><MessageCircle size={40} className="text-slate-300" /></div>
             <h2 className="text-xl font-bold text-slate-900 mb-2">No Matches Yet</h2>
-            <p className="text-slate-500 text-sm max-w-[200px] mb-8">Start swiping to find matches!</p>
-            <Button onClick={() => setView(ViewState.EXPLORE)} className="w-48" icon={<Search size={18} />}>Go to Explore</Button>
+            <p className="text-slate-500 text-sm max-w-[200px] mb-8">Start swiping!</p>
+            <Button onClick={() => setView(ViewState.EXPLORE)} className="w-48" icon={<Search size={18} />}>Explore</Button>
         </div>
     ) : (
         <div className="space-y-2">
@@ -284,20 +249,19 @@ const ChatScreen = ({ match, messages, onSend, onBack }: any) => {
             <div className="p-4 bg-white shadow-sm flex items-center gap-3 pt-6 pb-4">
                 <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full"><ChevronLeft className="text-slate-900" /></button>
                 <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${match.avatarColor || 'from-purple-500 to-pink-500'} flex items-center justify-center text-white font-bold`}>{match.name[0]}</div>
-                <div><h3 className="font-bold text-slate-900 text-sm">{match.name}</h3><div className="flex items-center gap-1 text-xs text-purple-600 font-medium"><Clock size={10} /> 10:00</div></div>
+                <div><h3 className="font-bold text-slate-900 text-sm">{match.name}</h3></div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <div className="text-center text-xs text-slate-400 my-4">Session Started - Verified Connection</div>
                 {messages.map((msg: any) => (
                     <div key={msg.id} className={`flex ${msg.isMine ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm shadow-sm ${msg.isMine ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-br-none' : 'bg-white text-slate-800 rounded-bl-none'}`}>{msg.text}</div>
+                        <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm shadow-sm ${msg.isMine ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' : 'bg-white text-slate-800'}`}>{msg.text}</div>
                     </div>
                 ))}
                 <div ref={endRef} />
             </div>
             <div className="p-4 bg-white border-t border-slate-100 flex gap-2">
-                <input className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-5 py-3 text-slate-900 outline-none focus:border-purple-500 transition-colors" placeholder="Type a message..." value={text} onChange={e => setText(e.target.value)} onKeyPress={e => e.key === 'Enter' && (onSend(text), setText(''))}/>
-                <button onClick={() => { onSend(text); setText(''); }} className="w-12 h-12 bg-purple-600 text-white rounded-full flex items-center justify-center hover:bg-purple-700 shadow-lg shadow-purple-200"><Send size={20} /></button>
+                <input className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-5 py-3 outline-none" placeholder="Type..." value={text} onChange={e => setText(e.target.value)} onKeyPress={e => e.key === 'Enter' && (onSend(text), setText(''))}/>
+                <button onClick={() => { onSend(text); setText(''); }} className="w-12 h-12 bg-purple-600 text-white rounded-full flex items-center justify-center"><Send size={20} /></button>
             </div>
         </div>
     )
@@ -306,9 +270,9 @@ const ChatScreen = ({ match, messages, onSend, onBack }: any) => {
 const ExploreView = ({ profile, onLike, onPass, setView }: any) => {
     if (!profile) return (
         <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-slate-50">
-            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm"><CheckCircle size={40} className="text-green-500" /></div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">All Caught Up!</h2>
-            <Button variant="secondary" onClick={() => setView(ViewState.HOME)}>Back Home</Button>
+            <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4"><CheckCircle size={40} className="text-green-500" /></div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">No more profiles</h2>
+            <Button variant="secondary" onClick={() => setView(ViewState.HOME)}>Home</Button>
         </div>
     );
     return (
@@ -324,8 +288,8 @@ const ExploreView = ({ profile, onLike, onPass, setView }: any) => {
                 </div>
             </div>
             <div className="flex justify-center gap-6 mb-20 px-8">
-                <button onClick={onPass} className="w-16 h-16 rounded-full bg-white shadow-lg text-slate-400 flex items-center justify-center hover:text-red-500 hover:scale-110 transition-all"><X size={32} /></button>
-                <button onClick={onLike} className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg shadow-purple-500/30 text-white flex items-center justify-center hover:scale-110 transition-all"><Heart fill="currentColor" size={32} /></button>
+                <button onClick={onPass} className="w-16 h-16 rounded-full bg-white shadow-lg text-slate-400 flex items-center justify-center"><X size={32} /></button>
+                <button onClick={onLike} className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg text-white flex items-center justify-center"><Heart fill="currentColor" size={32} /></button>
             </div>
         </div>
     );
@@ -333,13 +297,9 @@ const ExploreView = ({ profile, onLike, onPass, setView }: any) => {
 
 const ProfileView = ({ user, onLogout }: any) => (
     <div className="h-full bg-slate-50 p-6 pt-12 flex flex-col items-center">
-        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-4xl font-bold text-white mb-6 shadow-xl shadow-purple-500/20">{user?.name?.[0]}</div>
+        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-4xl font-bold text-white mb-6">{user?.name?.[0]}</div>
         <h2 className="text-2xl font-bold text-slate-900 mb-1">{user?.name}, {user?.age}</h2>
-        <p className="text-slate-500 mb-8">{user?.gender}</p>
-        <div className="w-full space-y-3">
-             <Button fullWidth variant="primary" icon={<Star size={18} fill="currentColor" className="text-yellow-200" />}>View My Ratings</Button>
-             <Button fullWidth variant="secondary" className="text-red-500 border-red-100 hover:bg-red-50" onClick={onLogout}>Logout</Button>
-        </div>
+        <Button fullWidth variant="secondary" className="text-red-500 mt-8" onClick={onLogout}>Logout</Button>
     </div>
 );
 
@@ -355,13 +315,16 @@ export default function App() {
   const [exploreProfile, setExploreProfile] = useState<any>(null);
   const [error, setError] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [lastProof, setLastProof] = useState<any>(null);
+
+  // Initialize MiniKit
+  useEffect(() => {
+    if (!MiniKit.isInstalled()) {
+      console.warn('MiniKit is not installed. App may not function correctly outside World App.');
+    }
+  }, []);
 
   useEffect(() => { 
       if (token) fetchUserData(); 
-      if (WORLD_ID_APP_ID.includes('12345') && view === ViewState.AUTH) {
-          setError("Configuration Error: Please update WORLD_ID_APP_ID in App.tsx");
-      }
   }, [token, view]);
   
   useEffect(() => {
@@ -383,20 +346,16 @@ export default function App() {
   const fetchUserData = async () => {
     try {
       const res = await fetch(`${API_URL}/me`, { headers: { 'Authorization': token || '' } });
-      
-      // Handle unauthorized (401) gracefully
       if (res.status === 401) {
           localStorage.removeItem('elite_token');
           setToken(null);
           setView(ViewState.AUTH);
           return;
       }
-
-      if(!res.ok) throw new Error("Connection failed");
       const data = await res.json();
       if (data.success) { setUser(data.user); setView(ViewState.HOME); } else { setView(ViewState.ONBOARDING); }
     } catch { 
-        setError("Cannot connect to server. Ensure backend is running.");
+        setError("Cannot connect to server.");
         setView(ViewState.AUTH); 
     }
   };
@@ -410,104 +369,62 @@ export default function App() {
       try { const res = await fetch(`${API_URL}/chat/${matchId}`, { headers: { 'Authorization': token || '' } }); const data = await res.json(); if(data.success) setActiveMessages(data.messages); } catch(e) { console.error(e); }
   };
 
-  // LOGIN FUNCTION
   const loginUser = async (proof: any) => {
-    // Retry logic for cold-start backends
-    const maxRetries = 3;
-    let attempt = 0;
-    let lastError;
-
-    while (attempt < maxRetries) {
-        try {
-            console.log(`Login Attempt ${attempt + 1}/${maxRetries}`);
-            const res = await fetch(`${API_URL}/auth/login`, { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' }, 
-                body: JSON.stringify({ proof }) 
-            });
-            
-            // CRITICAL FIX: Always try to parse JSON to get the real error message
-            const data = await res.json().catch(() => null);
-
-            if (!res.ok) {
-                // Use the error message from server if available
-                const errorMessage = data?.error || `Server Error: ${res.status}`;
-                throw new Error(errorMessage);
-            }
-            
-            if (data.success) { 
-                localStorage.setItem('elite_token', data.token); 
-                setToken(data.token); 
-                setError('');
-                // CRITICAL: Navigate based on isNew status
-                if (data.isNew) {
-                    setView(ViewState.ONBOARDING);
-                } else {
-                    setView(ViewState.HOME);
-                }
-                return; // Success!
-            } else {
-                throw new Error(data.error || "Unknown login error");
-            }
-        } catch (e: any) {
-            console.error(`Attempt ${attempt + 1} failed:`, e);
-            lastError = e;
-            attempt++;
-            
-            // Don't retry client errors (4xx)
-            if (e.message.includes('400') || e.message.includes('401')) {
-                break;
-            }
-
-            if (attempt < maxRetries) {
-                // Wait 2 seconds before retry
-                await new Promise(r => setTimeout(r, 2000));
-            }
+    try {
+        const res = await fetch(`${API_URL}/auth/login`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ proof }) 
+        });
+        const data = await res.json();
+        if (data.success) { 
+            localStorage.setItem('elite_token', data.token); 
+            setToken(data.token); 
+            setError('');
+            if (data.isNew) setView(ViewState.ONBOARDING);
+            else setView(ViewState.HOME);
+        } else {
+            throw new Error(data.error || "Login error");
         }
+    } catch (e: any) {
+        setError(`Login Failed: ${e.message}`);
     }
-    throw lastError;
   };
   
-  // MOCK LOGIN HANDLER
   const handleMockLogin = async () => {
       setIsLoggingIn(true);
-      setError('');
+      try { await loginUser('mock'); } finally { setIsLoggingIn(false); }
+  };
+
+  const handleWorldIDLogin = async () => {
+      if (!MiniKit.isInstalled()) {
+          setError('Please open this app inside World App');
+          return;
+      }
+
+      setIsLoggingIn(true);
+
+      const verifyPayload: VerifyCommandInput = {
+          action: WORLD_ID_ACTION,
+          verification_level: VerificationLevel.Device
+      };
+
       try {
-          await loginUser('mock');
-      } catch (e: any) {
-          setError(`Login Failed: ${e.message}`); 
+          const { finalPayload } = await MiniKit.commandsAsync.verify(verifyPayload);
+
+          if (finalPayload.status === 'error') {
+              setError('Verification failed. Please try again.');
+              setIsLoggingIn(false);
+              return;
+          }
+
+          await loginUser(finalPayload);
+      } catch (error: any) {
+          console.error('World ID verification error:', error);
+          setError('Verification failed: ' + error.message);
       } finally {
           setIsLoggingIn(false);
       }
-  };
-
-  // WORLD ID HANDLERS
-  
-  // 1. handleVerify: Validates the proof LOCALLY just to satisfy the widget.
-  //    We DO NOT call the backend here to prevent timeouts.
-  const handleVerify = async (result: any) => {
-      console.log("Proof received from World ID, validating structure...", result);
-      if (!result || !result.nullifier_hash) {
-          throw new Error("Invalid proof received");
-      }
-      return; 
-  };
-
-  // 2. onSuccess: Called after widget closes. Now we call the backend.
-  const onSuccess = (result: any) => {
-      console.log("Widget closed, starting backend login...");
-      setLastProof(result); // Save for retry
-      setIsLoggingIn(true);
-      setError('');
-      
-      loginUser(result)
-        .catch(e => {
-            console.error("Final login failure:", e);
-            setError(`Login Failed: ${e.message}`);
-        })
-        .finally(() => {
-            setIsLoggingIn(false);
-        });
   };
 
   const handleProfileSubmit = async (p: any) => {
@@ -518,17 +435,12 @@ export default function App() {
     await fetch(`${API_URL}/explore/like`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' }, body: JSON.stringify({ targetId: exploreProfile.worldId }) }); fetchExploreProfile();
   };
   const handleUnlock = async (matchId: string) => {
-      const msg = user?.subscription?.active ? "Unlock Chat? (Premium Active)" : "Unlock 10min Chat? (Costs Free Unlock or 5 WLD)";
+      const msg = user?.subscription?.active ? "Unlock?" : "Unlock (5 WLD)?";
       if(!confirm(msg)) return;
-      
       try {
           const res = await fetch(`${API_URL}/matches/unlock`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' }, body: JSON.stringify({ matchId }) });
           const data = await res.json();
-          if(data.success) { 
-              alert(data.message);
-              fetchMatches(); 
-              fetchUserData(); 
-          } else { alert(data.error); }
+          if(data.success) { alert("Unlocked!"); fetchMatches(); fetchUserData(); } else { alert(data.error); }
       } catch(e) { console.error(e); }
   };
   const handleSendMessage = async (text: string) => {
@@ -536,20 +448,15 @@ export default function App() {
       await fetch(`${API_URL}/chat/send`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' }, body: JSON.stringify({ matchId: activeChat.matchId, text }) });
       fetchMessages(activeChat.matchId);
   }
-
   const handleUpgrade = async () => {
-      if(!confirm("Upgrade to Premium for 3 WLD?")) return;
+      if(!confirm("Upgrade (3 WLD)?")) return;
       try {
           const res = await fetch(`${API_URL}/subscription/upgrade`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': token || '' } });
           const data = await res.json();
-          if(data.success) { 
-              alert("Successfully Upgraded!");
-              fetchUserData(); 
-          } else { alert(data.error); }
+          if(data.success) { alert("Upgraded!"); fetchUserData(); } else { alert(data.error); }
       } catch (e) { console.error(e); }
   };
 
-  // --- ROUTER ---
   return (
     <div className="h-full w-full bg-white relative">
         <div className="h-full overflow-hidden flex flex-col">
@@ -560,53 +467,17 @@ export default function App() {
                         <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center text-center p-6">
                             <Loader2 className="animate-spin text-purple-600 mb-4" size={48} />
                             <p className="font-bold text-slate-800">Logging in...</p>
-                            <p className="text-xs text-slate-500 mt-2">Connecting to secure server. This may take up to 60s if server is waking up.</p>
                         </div>
                     )}
-
                     <h2 className="text-2xl font-bold mb-8">Verify to Continue</h2>
-                    
-                    {error && (
-                        <div className="w-full mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex flex-col gap-2">
-                            <div className="flex items-center gap-2 font-bold"><AlertCircle size={16} /> Login Error</div>
-                            <p className="break-words">{error}</p>
-                            
-                            {/* Manual Retry Button */}
-                            {lastProof && (
-                                <button 
-                                    onClick={() => onSuccess(lastProof)}
-                                    className="mt-2 flex items-center justify-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 py-2 rounded-lg font-bold transition-colors"
-                                >
-                                    <RefreshCw size={14} /> Retry Login
-                                </button>
-                            )}
-                            
-                            <div className="text-xs text-red-400 mt-1 pt-2 border-t border-red-100">
-                                Try again. If error persists, check backend.
-                            </div>
-                        </div>
+                    {error && <div className="w-full mb-6 p-4 bg-red-50 text-red-600 text-sm rounded-xl"><AlertCircle size={16} className="inline mr-2"/>{error}</div>}
+                    {!MiniKit.isInstalled() && (
+                        <Button fullWidth onClick={() => handleMockLogin()} className="mb-4">Mock Login (Dev Mode)</Button>
                     )}
-                    
-                    <div className="text-xs text-center text-slate-400 mb-4 p-2 bg-slate-50 rounded break-all">
-                        Backend: {API_URL}
-                    </div>
-
-                    <Button fullWidth onClick={() => handleMockLogin()} className="mb-4">Mock Login (Dev Only)</Button>
-                    
                     <div className="w-full">
-                        <IDKitWidget 
-                            app_id={WORLD_ID_APP_ID} 
-                            action={WORLD_ID_ACTION} 
-                            onSuccess={onSuccess} 
-                            handleVerify={handleVerify}
-                            verification_level={VerificationLevel.Device}
-                        >
-                            {({ open }: any) => (
-                                <Button fullWidth variant="secondary" onClick={open} icon={<Globe size={18} />}>
-                                    Verify with World ID
-                                </Button>
-                            )}
-                        </IDKitWidget>
+                        <Button fullWidth variant="secondary" onClick={handleWorldIDLogin} icon={<Globe size={18} />}>
+                            Verify with World ID
+                        </Button>
                     </div>
                  </div>
             )}

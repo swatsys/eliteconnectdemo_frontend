@@ -1,0 +1,32 @@
+{
+  "name": "Elite Connect",
+  "short_name": "Elite Connect",
+  "description": "Verified connections, genuine hearts - A dating app powered by World ID",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#a855f7",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["social", "lifestyle"],
+  "world_app": {
+    "mini_app": true,
+    "requires_world_id": true,
+    "permissions": [
+      "world_id",
+      "wallet",
+      "notifications"
+    ]
+  }
+}
