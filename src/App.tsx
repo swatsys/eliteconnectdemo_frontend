@@ -14,10 +14,8 @@ const API_URL = 'https://eliteconnectdemo-backend-swatsys-projects.vercel.app/ap
 const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
 const WORLD_ID_ACTION = 'signin';
 
-// Install MiniKit immediately (critical for World App)
-if (typeof window !== 'undefined' && !MiniKit.isInstalled()) {
-  MiniKit.install(WORLD_ID_APP_ID);
-}
+// Note: MiniKit.install() is called in index.tsx BEFORE React renders
+// This ensures World App detection works properly
 
 // --- TYPES ---
 enum ViewState {
@@ -429,7 +427,13 @@ export default function App() {
   };
 
   const handleWorldIDLogin = () => {
+      console.log('handleWorldIDLogin called');
+      console.log('MiniKit.isInstalled():', MiniKit.isInstalled());
+      console.log('App ID:', WORLD_ID_APP_ID);
+      console.log('Action:', WORLD_ID_ACTION);
+
       if (!MiniKit.isInstalled()) {
+          console.error('MiniKit not installed! User agent:', navigator.userAgent);
           setError('Please open this app inside World App');
           return;
       }
