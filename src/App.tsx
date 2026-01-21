@@ -3,7 +3,7 @@ import {
   Heart, X, MessageCircle, Home, Wallet, User,
   Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap, Loader2, RefreshCw
 } from 'lucide-react';
-import { MiniKit, VerifyCommandInput, VerificationLevel } from '@worldcoin/minikit-js';
+import { MiniKit, VerifyCommandInput, VerificationLevel, ResponseEvent } from '@worldcoin/minikit-js';
 
 // --- CONFIGURATION ---
 // VERCEL DEPLOYMENT: Use relative path. Vercel routes /api requests to the backend function.
@@ -401,35 +401,42 @@ export default function App() {
       try { await loginUser('mock'); } finally { setIsLoggingIn(false); }
   };
 
-  const handleWorldIDLogin = async () => {
+  const handleWorldIDLogin = () => {
       if (!MiniKit.isInstalled()) {
           setError('Please open this app inside World App');
           return;
       }
 
       setIsLoggingIn(true);
+      setError('');
 
       const verifyPayload: VerifyCommandInput = {
           action: WORLD_ID_ACTION,
           verification_level: VerificationLevel.Device
       };
 
-      try {
-          const { finalPayload } = await MiniKit.commandsAsync.verify(verifyPayload);
+      // Use synchronous command API - keeps you in World App
+      MiniKit.commands.verify(verifyPayload);
 
-          if (finalPayload.status === 'error') {
+      // Subscribe to the response using ResponseEvent enum
+      MiniKit.subscribe(ResponseEvent.MiniAppVerifyAction, async (response: any) => {
+          if (response.status === 'error') {
               setError('Verification failed. Please try again.');
               setIsLoggingIn(false);
               return;
           }
 
-          await loginUser(finalPayload);
-      } catch (error: any) {
-          console.error('World ID verification error:', error);
-          setError('Verification failed: ' + error.message);
-      } finally {
-          setIsLoggingIn(false);
-      }
+          if (response.status === 'success') {
+              try {
+                  await loginUser(response);
+              } catch (error: any) {
+                  console.error('Login error:', error);
+                  setError('Login failed: ' + error.message);
+              } finally {
+                  setIsLoggingIn(false);
+              }
+          }
+      });
   };
 
   const handleProfileSubmit = async (p: any) => {
