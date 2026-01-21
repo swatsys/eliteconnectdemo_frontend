@@ -13,6 +13,11 @@ const API_URL = 'https://eliteconnectdemo-backend-swatsys-projects.vercel.app/ap
 const WORLD_ID_APP_ID = 'app_486e187afe7bc69a19456a3fa901a162'; // <--- CHANGE THIS TO YOUR REAL APP ID
 const WORLD_ID_ACTION = 'signin';
 
+// Install MiniKit immediately (critical for World App)
+if (typeof window !== 'undefined' && !MiniKit.isInstalled()) {
+  MiniKit.install(WORLD_ID_APP_ID);
+}
+
 // --- TYPES ---
 enum ViewState {
   SPLASH = 'SPLASH',
