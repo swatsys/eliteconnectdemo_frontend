@@ -7,6 +7,7 @@ import { MiniKit, VerifyCommandInput, VerificationLevel, ResponseEvent } from '@
 
 // --- CONFIGURATION ---
 // VERCEL DEPLOYMENT: Use relative path. Vercel routes /api requests to the backend function.
+// TODO: Update this to your actual Vercel backend production URL
 const API_URL = 'https://eliteconnectdemo-backend-swatsys-projects.vercel.app/api';
 
 // !!! IMPORTANT: REPLACE THIS WITH YOUR REAL APP ID FROM developer.worldcoin.org !!!
@@ -321,11 +322,37 @@ export default function App() {
   const [error, setError] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Initialize MiniKit
+  // Initialize MiniKit and set up subscription
   useEffect(() => {
     if (!MiniKit.isInstalled()) {
       console.warn('MiniKit is not installed. App may not function correctly outside World App.');
+      return;
     }
+
+    // Set up verification response listener (do this ONCE on mount)
+    MiniKit.subscribe(
+      ResponseEvent.MiniAppVerifyAction,
+      async (response: any) => {
+        console.log('World ID verification response:', response);
+
+        if (response.status === 'error') {
+          setError('Verification failed. Please try again.');
+          setIsLoggingIn(false);
+          return;
+        }
+
+        if (response.status === 'success') {
+          try {
+            await loginUser(response);
+          } catch (error: any) {
+            console.error('Login error:', error);
+            setError('Login failed: ' + error.message);
+          } finally {
+            setIsLoggingIn(false);
+          }
+        }
+      }
+    );
   }, []);
 
   useEffect(() => { 
@@ -415,28 +442,9 @@ export default function App() {
           verification_level: VerificationLevel.Device
       };
 
-      // Use synchronous command API - keeps you in World App
+      // Send verification command - response will be handled by subscription
+      console.log('Sending verify command with payload:', verifyPayload);
       MiniKit.commands.verify(verifyPayload);
-
-      // Subscribe to the response using ResponseEvent enum
-      MiniKit.subscribe(ResponseEvent.MiniAppVerifyAction, async (response: any) => {
-          if (response.status === 'error') {
-              setError('Verification failed. Please try again.');
-              setIsLoggingIn(false);
-              return;
-          }
-
-          if (response.status === 'success') {
-              try {
-                  await loginUser(response);
-              } catch (error: any) {
-                  console.error('Login error:', error);
-                  setError('Login failed: ' + error.message);
-              } finally {
-                  setIsLoggingIn(false);
-              }
-          }
-      });
   };
 
   const handleProfileSubmit = async (p: any) => {
