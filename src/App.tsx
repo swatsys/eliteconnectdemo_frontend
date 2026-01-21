@@ -450,14 +450,31 @@ export default function App() {
             setError('');
             setIsLoggingIn(false);
 
-            if (data.isNew) {
-              addDebug('✅ NEW USER - Going to ONBOARDING');
-              setView(ViewState.ONBOARDING);
-              addDebug(`View set to: ${ViewState.ONBOARDING}`);
-            } else {
-              addDebug('✅ EXISTING USER - Fetching user data');
-              // For existing users, fetch their full profile
-              fetchUserData();
+            // Always go to onboarding for new users, regardless of backend flag
+            // We'll check on the backend if they have a profile
+            addDebug('✅ Login successful - Checking if profile exists');
+
+            // Fetch user data to determine if they need onboarding
+            try {
+                const userRes = await fetch(`${API_URL}/me`, {
+                    headers: { 'Authorization': data.token },
+                    signal: AbortSignal.timeout(10000)
+                });
+                const userData = await userRes.json();
+                addDebug(`User profile data: ${JSON.stringify(userData)}`);
+
+                if (userData.success && userData.user && userData.user.name) {
+                    addDebug('✅ User has profile - Going to HOME');
+                    setUser(userData.user);
+                    setView(ViewState.HOME);
+                } else {
+                    addDebug('✅ User needs profile - Going to ONBOARDING');
+                    setView(ViewState.ONBOARDING);
+                }
+            } catch (err) {
+                addDebug(`Error fetching user: ${err}`);
+                // Default to onboarding if we can't fetch user
+                setView(ViewState.ONBOARDING);
             }
         } else {
             addDebug(`❌ Login failed: ${data.error}`);
