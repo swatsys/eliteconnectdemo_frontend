@@ -338,7 +338,8 @@ export default function App() {
   useEffect(() => {
     if (view === ViewState.EXPLORE) fetchExploreProfile();
     if (view === ViewState.MATCHES) fetchMatches();
-    if (view === ViewState.WALLET) fetchUserData();
+    // Don't fetch user data when going to wallet - just display what we have
+    // if (view === ViewState.WALLET) fetchUserData();
   }, [view]);
 
   useEffect(() => {
@@ -439,7 +440,9 @@ export default function App() {
         });
 
         const data = await res.json();
-        addDebug(`Login response: ${JSON.stringify(data).substring(0, 100)}`);
+        addDebug(`Login response: ${JSON.stringify(data)}`);
+        addDebug(`isNew value: ${data.isNew}`);
+        addDebug(`Token: ${data.token ? 'received' : 'missing'}`);
 
         if (data.success) {
             localStorage.setItem('elite_token', data.token);
@@ -448,14 +451,16 @@ export default function App() {
             setIsLoggingIn(false);
 
             if (data.isNew) {
-              addDebug('New user, showing onboarding');
+              addDebug('✅ NEW USER - Going to ONBOARDING');
               setView(ViewState.ONBOARDING);
+              addDebug(`View set to: ${ViewState.ONBOARDING}`);
             } else {
-              addDebug('Existing user, fetching user data');
+              addDebug('✅ EXISTING USER - Fetching user data');
               // For existing users, fetch their full profile
               fetchUserData();
             }
         } else {
+            addDebug(`❌ Login failed: ${data.error}`);
             throw new Error(data.error || "Login error");
         }
     } catch (e: any) {
