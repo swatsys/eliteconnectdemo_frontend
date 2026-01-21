@@ -3,7 +3,7 @@ import {
   Heart, X, MessageCircle, Home, Wallet, User,
   Search, ChevronLeft, Send, CheckCircle, Shield, Star, Rocket, Globe, Clock, Lock, AlertCircle, Download, Crown, Zap, Loader2, RefreshCw
 } from 'lucide-react';
-import { MiniKit, VerifyCommandInput, VerificationLevel, ResponseEvent } from '@worldcoin/minikit-js';
+import { MiniKit, VerifyCommandInput, VerificationLevel } from '@worldcoin/minikit-js';
 
 // --- CONFIGURATION ---
 // VERCEL DEPLOYMENT: Use relative path. Vercel routes /api requests to the backend function.
@@ -320,37 +320,10 @@ export default function App() {
   const [error, setError] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Initialize MiniKit and set up subscription
+  // Check MiniKit on mount
   useEffect(() => {
-    if (!MiniKit.isInstalled()) {
-      console.warn('MiniKit is not installed. App may not function correctly outside World App.');
-      return;
-    }
-
-    // Set up verification response listener (do this ONCE on mount)
-    MiniKit.subscribe(
-      ResponseEvent.MiniAppVerifyAction,
-      async (response: any) => {
-        console.log('World ID verification response:', response);
-
-        if (response.status === 'error') {
-          setError('Verification failed. Please try again.');
-          setIsLoggingIn(false);
-          return;
-        }
-
-        if (response.status === 'success') {
-          try {
-            await loginUser(response);
-          } catch (error: any) {
-            console.error('Login error:', error);
-            setError('Login failed: ' + error.message);
-          } finally {
-            setIsLoggingIn(false);
-          }
-        }
-      }
-    );
+    console.log('App mounted. MiniKit.isInstalled():', MiniKit.isInstalled());
+    console.log('User agent:', navigator.userAgent);
   }, []);
 
   useEffect(() => { 
@@ -426,29 +399,49 @@ export default function App() {
       try { await loginUser('mock'); } finally { setIsLoggingIn(false); }
   };
 
-  const handleWorldIDLogin = () => {
-      console.log('handleWorldIDLogin called');
+  const handleWorldIDLogin = async () => {
+      console.log('=== World ID Login Started ===');
       console.log('MiniKit.isInstalled():', MiniKit.isInstalled());
-      console.log('App ID:', WORLD_ID_APP_ID);
-      console.log('Action:', WORLD_ID_ACTION);
+      console.log('User agent:', navigator.userAgent);
 
+      // If not in World App, use mock login
       if (!MiniKit.isInstalled()) {
-          console.error('MiniKit not installed! User agent:', navigator.userAgent);
-          setError('Please open this app inside World App');
+          console.warn('Not in World App, using mock login');
+          await handleMockLogin();
           return;
       }
 
       setIsLoggingIn(true);
       setError('');
 
-      const verifyPayload: VerifyCommandInput = {
-          action: WORLD_ID_ACTION,
-          verification_level: VerificationLevel.Device
-      };
+      try {
+          const verifyPayload: VerifyCommandInput = {
+              action: WORLD_ID_ACTION,
+              verification_level: VerificationLevel.Device
+          };
 
-      // Send verification command - response will be handled by subscription
-      console.log('Sending verify command with payload:', verifyPayload);
-      MiniKit.commands.verify(verifyPayload);
+          console.log('Calling MiniKit.commandsAsync.verify with payload:', verifyPayload);
+
+          // OFFICIAL DOCS METHOD: Use async/await
+          const { finalPayload } = await MiniKit.commandsAsync.verify(verifyPayload);
+
+          console.log('Verification completed. finalPayload:', finalPayload);
+
+          if (finalPayload.status === 'error') {
+              console.error('Verification failed:', finalPayload);
+              setError('Verification failed. Please try again.');
+              setIsLoggingIn(false);
+              return;
+          }
+
+          console.log('Verification successful, logging in...');
+          await loginUser(finalPayload);
+
+      } catch (error: any) {
+          console.error('World ID verification error:', error);
+          setError('Verification error: ' + error.message);
+          setIsLoggingIn(false);
+      }
   };
 
   const handleProfileSubmit = async (p: any) => {
